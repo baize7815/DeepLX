@@ -105,6 +105,14 @@ func Router(cfg *Config) *gin.Engine {
 		})
 	})
 
+	// Lightweight health endpoint for platform health checks and external
+	// uptime monitors. It intentionally does not call the translation upstream.
+	r.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+		})
+	})
+
 	// Free API endpoint, No Pro Account required
 	r.POST("/translate", authMiddleware(cfg), func(c *gin.Context) {
 		req := PayloadFree{}

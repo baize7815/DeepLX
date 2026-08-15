@@ -53,6 +53,30 @@ Or use the provided [`compose.yaml`](compose.yaml):
 docker compose up -d
 ```
 
+### Render (Free)
+
+This repository includes a [`render.yaml`](render.yaml) Blueprint and a
+lightweight `GET /healthz` endpoint. The health endpoint only reports whether
+DLX is running; it does not send a request to the translation upstream.
+
+1. Fork this repository or push it to a repository in your own GitHub account.
+2. In the Render Dashboard, choose **New > Blueprint** and connect the repository.
+3. Enter a strong random value for the requested `TOKEN` environment variable.
+4. Deploy the `dlx-translation-api` Free web service.
+5. Copy the public URL shown by Render.
+
+Render provides the `PORT` environment variable automatically, and DLX already
+binds to it. To keep a Free service from becoming idle, an external uptime
+monitor can send a `GET` request every 5 minutes to:
+
+```text
+https://<your-render-service>.onrender.com/healthz
+```
+
+The expected response is HTTP 200 with `{"status":"ok"}`. Keeping a service
+continuously active consumes Free instance hours, so check the current limits
+in the [Render Free services documentation](https://render.com/docs/free).
+
 ### Binary
 
 Download the binary for your platform from [Releases](https://github.com/OwO-Network/DLX/releases) and run it (artifact names remain `deeplx_*`):
@@ -68,6 +92,59 @@ curl -X POST http://localhost:1188/translate \
   -H "Content-Type: application/json" \
   -d '{"text": "Hello, world!", "source_lang": "EN", "target_lang": "ZH"}'
 ```
+
+When `TOKEN` is configured, pass it in the authorization header:
+
+```bash
+curl -X POST https://<your-render-service>.onrender.com/translate \
+  -H "Authorization: Bearer <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Hello, world!","source_lang":"EN","target_lang":"ZH"}'
+```
+
+### Website integration
+
+Do not put the DLX `TOKEN` in browser JavaScript: every visitor could read and
+reuse it. The recommended design is for the website frontend to call its own
+backend endpoint, and for that backend to call DLX with the secret token.
+
+Browser code:
+
+```js
+async function translate(text, targetLang = "ZH") {
+  const response = await fetch("/api/translate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, target_lang: targetLang }),
+  });
+
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.message || "Translation failed");
+  return result.data;
+}
+```
+
+Example Node.js backend proxy (Node.js 18 or newer):
+
+```js
+app.post("/api/translate", async (req, res) => {
+  const upstream = await fetch(`${process.env.DLX_URL}/translate`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.DLX_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(req.body),
+  });
+
+  res.status(upstream.status).send(await upstream.text());
+});
+```
+
+Configure `DLX_URL` and `DLX_TOKEN` only on the website server. Validate input
+and add rate limiting on `/api/translate`. A single request is limited to 1500
+characters; for article or page translation, split content into paragraphs and
+translate them sequentially instead of sending the full HTML document.
 
 ## Discussion Group
 [Telegram Group](https://t.me/+8KDGHKJCxEVkNzll)
