@@ -112,6 +112,9 @@ func Router(cfg *Config) *gin.Engine {
 			"status": "ok",
 		})
 	})
+	r.HEAD("/healthz", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
 
 	// Free API endpoint, No Pro Account required
 	r.POST("/translate", authMiddleware(cfg), func(c *gin.Context) {
